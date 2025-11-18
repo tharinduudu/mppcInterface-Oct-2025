@@ -2,13 +2,13 @@
 # /etc/rc.local Detector bring-up (biasAdjust first, then slowControl)
 
 # ---- config (edit paths if needed) ----
-ICE40_MAIN="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/ice40/main"
-BITFILE="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/ice40/coincidence_4raw_3coincident.bin"
-MAX1932_MAIN="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/max1932/main"
+ICE40_MAIN="/home/cosmic/mppcInterface/firmware/libraries/ice40/main"
+BITFILE="/home/cosmic/mppcInterface/firmware/libraries/ice40/coincidence_4raw_3coincident.bin"
+MAX1932_MAIN="/home/cosmic/mppcInterface/firmware/libraries/max1932/main"
 
 DAC_PY="/home/cosmic/dac.py"
 BIAS_PY="/home/cosmic/biasAdj.py"
-SLOWCONTROL_DIR="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/slowControl"
+SLOWCONTROL_DIR="/home/cosmic/mppcInterface/firmware/libraries/slowControl"
 
 # Initial DAC codes (channels 0..3)
 INIT_CODE="0x2F1"
