@@ -7,6 +7,8 @@
 # - Installs your repo's rc.local (biasAdjust first, then slowControl) + enables rc-local.service
 # - Adds DataTransfer cron (6h) and installs Display.sh
 # - Generates SSH key once and prints public key
+# - NO pip self-upgrade (uses --break-system-packages for libs)
+
 set -euo pipefail
 
 USER_NAME="cosmic"
@@ -67,10 +69,9 @@ chown "${USER_NAME}:${USER_NAME}" "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/D
                                    "${USER_HOME}/dac.py" "${USER_HOME}/biasAdj.py"
 chmod 755 "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh"
 
-# ---- Python libraries (Blinka, BME280, DACx5678, smbus2) with PEP668 override ----
-log "Install Python libs (Blinka, BME280, DACx5678, smbus2) with --break-system-packages"
-python3 -m pip install --upgrade --break-system-packages pip
-python3 -m pip install --upgrade --break-system-packages \
+# ---- Python libraries (Blinka, BME280, DACx5678, smbus2) WITHOUT upgrading pip ----
+log "Install Python libs (Blinka, BME280, DACx5678, smbus2) — no pip upgrade"
+python3 -m pip install --break-system-packages --root-user-action=ignore \
   adafruit-blinka adafruit-circuitpython-bme280 adafruit-circuitpython-dacx5678 smbus2
 
 # ---- WiringPi ----
@@ -117,8 +118,6 @@ systemctl enable rc-local.service
 # ---- Cron for DataTransfer.sh (every 6h) ----
 log "Install crontab entry for DataTransfer.sh (every 6 hours)"
 bash -lc '(crontab -u '"${USER_NAME}"' -l 2>/dev/null | grep -v -F "/home/'"${USER_NAME}"'/DataTransfer.sh"; echo "0 */6 * * * /home/'"${USER_NAME}"'/DataTransfer.sh") | crontab -u '"${USER_NAME}"' -'
-
-# ---- Display.sh already installed/executable above ----
 
 # ---- SSH key: create once, then reuse ----
 log "Ensure SSH key exists and print public key"
