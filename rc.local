@@ -1,0 +1,56 @@
+#!/bin/sh
+# /etc/rc.local Detector bring-up (biasAdjust first, then slowControl)
+
+# ---- config (edit paths if needed) ----
+ICE40_MAIN="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/ice40/main"
+BITFILE="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/ice40/coincidence_4raw_3coincident.bin"
+MAX1932_MAIN="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/max1932/main"
+
+DAC_PY="/home/cosmic/dac.py"
+BIAS_PY="/home/cosmic/biasAdj.py"
+SLOWCONTROL_DIR="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/slowControl"
+
+# Initial DAC codes (channels 0..3)
+INIT_CODE="0x2F1"
+DAC_CHANNELS="0 1 2 3"
+
+# Logs for prep + biasAdjust
+LOGROOT="/home/cosmic/logs"
+TC_LOGDIR="$LOGROOT/tempcomp"
+MAINLOG="/var/log/detector.log"
+mkdir -p "$TC_LOGDIR" || true
+
+echo "[rc.local] === $(date) === startup" >>"$MAINLOG" 2>&1
+
+# ---- ensure i2c exists ----
+modprobe i2c-dev || true
+i=0
+while [ ! -e /dev/i2c-1 ] && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done
+[ -e /dev/i2c-1 ] || echo "[rc.local] WARNING: /dev/i2c-1 not present" >>"$MAINLOG" 2>&1
+
+# ---- 1) program FPGA ----
+echo "[rc.local] Programming ICE40" >>"$MAINLOG" 2>&1
+"$ICE40_MAIN" "$BITFILE" >>"$MAINLOG" 2>&1 || echo "[rc.local] ICE40 FAILED" >>"$MAINLOG" 2>&1
+
+# ---- 2) set HV ----
+echo "[rc.local] Setting HV" >>"$MAINLOG" 2>&1
+"$MAX1932_MAIN" 0xEA >>"$MAINLOG" 2>&1 || echo "[rc.local] MAX1932 FAILED" >>"$MAINLOG" 2>&1
+
+# ---- 3) initial DAC codes (run python as 'cosmic') ----
+echo "[rc.local] Initial DAC codes (${DAC_CHANNELS} -> ${INIT_CODE})" >>"$MAINLOG" 2>&1
+for ch in $DAC_CHANNELS; do
+  su -l cosmic -c "/usr/bin/env python3 '$DAC_PY' $ch '$INIT_CODE'" >>"$MAINLOG" 2>&1 || true
+done
+
+# ---- 4) start biasAdjust.py FIRST (background, protected from SIGHUP) ----
+BIAS_LOG="$TC_LOGDIR/biasadjust_$(date +%F_%H-%M-%S).log"
+su -l cosmic -c "nohup env PYTHONUNBUFFERED=1 TEMPCOMP_LOG_DIR='$TC_LOGDIR' /usr/bin/env python3 '$BIAS_PY' >>'$BIAS_LOG' 2>&1 &" || true
+echo "[rc.local] biasAdjust started -> $BIAS_LOG" >>"$MAINLOG" 2>&1
+
+# ---- 5) start slowControl AFTER a short wait (background, no extra redirection) ----
+sleep 3
+su -l cosmic -c "cd '$SLOWCONTROL_DIR' && nohup ./run.sh >/dev/null 2>&1 &" || true
+echo "[rc.local] slowControl started (run.sh handles its own log file)" >>"$MAINLOG" 2>&1
+
+echo "[rc.local] Startup complete." >>"$MAINLOG" 2>&1
+exit 0
