@@ -7,7 +7,7 @@
 # - Installs your repo's rc.local (biasAdjust first, then slowControl) + enables rc-local.service
 # - Adds DataTransfer cron (6h) and installs Display.sh
 # - Generates SSH key once and prints public key
-# - NO pip self-upgrade; uses --break-system-packages for libs
+
 
 set -euo pipefail
 
@@ -144,6 +144,6 @@ sudo -u "${USER_NAME}" bash -lc '
 '
 
 echo
-echo "✅ Install complete."
+echo "Install complete."
 echo "If /dev/i2c-1 or /dev/spidev0.* are missing, reboot now: sudo reboot"
 echo "To tail slowControl later: /home/${USER_NAME}/Display.sh"
