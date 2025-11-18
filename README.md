@@ -1,4 +1,6 @@
-# mppcInterface (Oct-2025) !!Please contact the gLOWCOST team before running detectorInstall.sh for data transfer arrangements!!
+# mppcInterface (Oct-2025) 
+
+>!!Please contact the gLOWCOST team before running detectorInstall.sh for data transfer arrangements!!
 
 > **!! Please send the public key printed at the end of the procedure.**
 
