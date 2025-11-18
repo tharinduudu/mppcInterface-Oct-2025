@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-# DetectorInstall-Oct2025.sh — one-shot setup for mppcInterface-Oct-2025
+# detectorInstall.sh — one-shot setup for your newer detector variant
 # - Enables I2C/SPI (persist + immediate)
-# - Fetches repo (mppcInterface/, rc.local, DataTransfer.sh, Display.sh, dac.py, biasAdj.py)
+# - Fetches repo files (mppcInterface/, rc.local, DataTransfer.sh, Display.sh, dac.py, biasAdj.py)
 # - Installs WiringPi
 # - Builds ice40/max1932/dac60508 + slowControl (with relink fallback)
 # - Installs your repo's rc.local (biasAdjust first, then slowControl) + enables rc-local.service
-# - Installs DataTransfer cron (6h) and Display.sh
-# - Generates SSH key once and prints the public key
+# - Adds DataTransfer cron (6h) and installs Display.sh
+# - Generates SSH key once and prints public key
 
 set -euo pipefail
 
 USER_NAME="cosmic"
 USER_HOME="/home/${USER_NAME}"
+
+# >>> CHANGE THIS if your repo slug differs <<<
 REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"
-REPO_TOP="${USER_HOME}/mppcInterface"   # note: new tree uses /home/cosmic/mppcInterface
+REPO_TOP="${USER_HOME}/mppcInterface"    # your new tree uses /home/cosmic/mppcInterface
 
 log(){ printf "\n[%s] %s\n" "$(date '+%F %T')" "$*"; }
 need_root(){ [[ $EUID -eq 0 ]] || { echo "Run with sudo"; exit 1; }; }
@@ -43,23 +45,30 @@ modprobe i2c-bcm2835 || true
 modprobe i2c-dev      || true
 modprobe spi_bcm2835  || true
 modprobe spidev       || true
+udevadm settle || true
 
 # ---- Fetch repo content ----
 log "Fetch repo files to ${USER_HOME}"
 sudo -u "${USER_NAME}" bash -lc '
+  set -e
   cd ~
-  rm -rf mppcInterface rc.local DataTransfer.sh Display.sh dac.py biasAdj.py
-  curl -L https://github.com/'"${REPO_SLUG}"'/archive/refs/heads/main.tar.gz \
-  | tar -xz -f - --strip-components=1 '"${REPO_SLUG}"'-main/mppcInterface \
-                     '"${REPO_SLUG}"'-main/rc.local \
-                     '"${REPO_SLUG}"'-main/DataTransfer.sh \
-                     '"${REPO_SLUG}"'-main/Display.sh \
-                     '"${REPO_SLUG}"'-main/dac.py \
-                     '"${REPO_SLUG}"'-main/biasAdj.py
+  TMP=$(mktemp -d)
+  curl -fLo "$TMP/repo.tgz" https://github.com/'"${REPO_SLUG}"'/archive/refs/heads/main.tar.gz
+  TOPDIR=$(tar -tzf "$TMP/repo.tgz" | head -1 | cut -d/ -f1)
+  # Extract only what we need, flatten under $HOME
+  tar -xzf "$TMP/repo.tgz" -C ~ --strip-components=1 \
+      "$TOPDIR/mppcInterface" \
+      "$TOPDIR/rc.local" \
+      "$TOPDIR/DataTransfer.sh" \
+      "$TOPDIR/Display.sh" \
+      "$TOPDIR/dac.py" \
+      "$TOPDIR/biasAdj.py"
+  rm -rf "$TMP"
 '
-chmod 755 "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh" || true
+# Ownership + exec
 chown "${USER_NAME}:${USER_NAME}" "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh" \
-                                   "${USER_HOME}/dac.py" "${USER_HOME}/biasAdj.py" || true
+                                   "${USER_HOME}/dac.py" "${USER_HOME}/biasAdj.py"
+chmod 755 "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh"
 
 # ---- Python libraries for this detector ----
 log "Install Python libs (Blinka, BME280, DACx5678, smbus2)"
@@ -80,7 +89,7 @@ build_dir "${REPO_TOP}/firmware/libraries/ice40"
 build_dir "${REPO_TOP}/firmware/libraries/max1932"
 build_dir "${REPO_TOP}/firmware/libraries/dac60508"
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && make clean || true && make -j\$(nproc) || true"
-# relink fallback in case Makefile link order is off
+# relink fallback if Makefile link order is off
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && rm -f main.o main && g++ -c main.cpp -std=c++11 -I. && g++ main.o -lwiringPi -o main"
 
 # ---- Install your repo's rc.local verbatim and enable the compatibility unit ----
@@ -106,13 +115,11 @@ UNIT
 
 systemctl daemon-reload
 systemctl enable rc-local.service
-# (Don’t start now; it will run cleanly on next boot.)
+# (Don’t start now; it will run on next boot.)
 
 # ---- Cron for DataTransfer.sh (every 6h) ----
 log "Install crontab entry for DataTransfer.sh (every 6 hours)"
 bash -lc '(crontab -u '"${USER_NAME}"' -l 2>/dev/null | grep -v -F "/home/'"${USER_NAME}"'/DataTransfer.sh"; echo "0 */6 * * * /home/'"${USER_NAME}"'/DataTransfer.sh") | crontab -u '"${USER_NAME}"' -'
-
-# ---- Display.sh already installed/executable above ----
 
 # ---- SSH key: create once, then reuse ----
 log "Ensure SSH key exists and print public key"
@@ -129,6 +136,6 @@ sudo -u "${USER_NAME}" bash -lc '
 '
 
 echo
-echo "Install complete."
+echo "✅ Install complete."
 echo "If /dev/i2c-1 or /dev/spidev0.* are missing, reboot now: sudo reboot"
 echo "To tail slowControl later: /home/${USER_NAME}/Display.sh"
