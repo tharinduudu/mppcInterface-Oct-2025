@@ -7,15 +7,12 @@
 # - Installs your repo's rc.local (biasAdjust first, then slowControl) + enables rc-local.service
 # - Adds DataTransfer cron (6h) and installs Display.sh
 # - Generates SSH key once and prints public key
-
 set -euo pipefail
 
 USER_NAME="cosmic"
 USER_HOME="/home/${USER_NAME}"
-
-# >>> CHANGE THIS if your repo slug differs <<<
-REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"
-REPO_TOP="${USER_HOME}/mppcInterface"    # your new tree uses /home/cosmic/mppcInterface
+REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"   # <-- change if your repo slug differs
+REPO_TOP="${USER_HOME}/mppcInterface"            # repo extracts here
 
 log(){ printf "\n[%s] %s\n" "$(date '+%F %T')" "$*"; }
 need_root(){ [[ $EUID -eq 0 ]] || { echo "Run with sudo"; exit 1; }; }
@@ -47,7 +44,7 @@ modprobe spi_bcm2835  || true
 modprobe spidev       || true
 udevadm settle || true
 
-# ---- Fetch repo content ----
+# ---- Fetch repo content (auto-detect topdir in tarball) ----
 log "Fetch repo files to ${USER_HOME}"
 sudo -u "${USER_NAME}" bash -lc '
   set -e
@@ -55,7 +52,6 @@ sudo -u "${USER_NAME}" bash -lc '
   TMP=$(mktemp -d)
   curl -fLo "$TMP/repo.tgz" https://github.com/'"${REPO_SLUG}"'/archive/refs/heads/main.tar.gz
   TOPDIR=$(tar -tzf "$TMP/repo.tgz" | head -1 | cut -d/ -f1)
-  # Extract only what we need, flatten under $HOME
   tar -xzf "$TMP/repo.tgz" -C ~ --strip-components=1 \
       "$TOPDIR/mppcInterface" \
       "$TOPDIR/rc.local" \
@@ -65,16 +61,17 @@ sudo -u "${USER_NAME}" bash -lc '
       "$TOPDIR/biasAdj.py"
   rm -rf "$TMP"
 '
-# Ownership + exec
+
+# Ownership + exec for helpers
 chown "${USER_NAME}:${USER_NAME}" "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh" \
                                    "${USER_HOME}/dac.py" "${USER_HOME}/biasAdj.py"
 chmod 755 "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh"
 
-# ---- Python libraries for this detector ----
-log "Install Python libs (Blinka, BME280, DACx5678, smbus2)"
-python3 -m pip install --upgrade pip
-python3 -m pip install --upgrade adafruit-blinka adafruit-circuitpython-bme280 \
-    adafruit-circuitpython-dacx5678 smbus2
+# ---- Python libraries (Blinka, BME280, DACx5678, smbus2) with PEP668 override ----
+log "Install Python libs (Blinka, BME280, DACx5678, smbus2) with --break-system-packages"
+python3 -m pip install --upgrade --break-system-packages pip
+python3 -m pip install --upgrade --break-system-packages \
+  adafruit-blinka adafruit-circuitpython-bme280 adafruit-circuitpython-dacx5678 smbus2
 
 # ---- WiringPi ----
 log "Install WiringPi"
@@ -89,7 +86,7 @@ build_dir "${REPO_TOP}/firmware/libraries/ice40"
 build_dir "${REPO_TOP}/firmware/libraries/max1932"
 build_dir "${REPO_TOP}/firmware/libraries/dac60508"
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && make clean || true && make -j\$(nproc) || true"
-# relink fallback if Makefile link order is off
+# relink fallback in case Makefile link order is off
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && rm -f main.o main && g++ -c main.cpp -std=c++11 -I. && g++ main.o -lwiringPi -o main"
 
 # ---- Install your repo's rc.local verbatim and enable the compatibility unit ----
@@ -120,6 +117,8 @@ systemctl enable rc-local.service
 # ---- Cron for DataTransfer.sh (every 6h) ----
 log "Install crontab entry for DataTransfer.sh (every 6 hours)"
 bash -lc '(crontab -u '"${USER_NAME}"' -l 2>/dev/null | grep -v -F "/home/'"${USER_NAME}"'/DataTransfer.sh"; echo "0 */6 * * * /home/'"${USER_NAME}"'/DataTransfer.sh") | crontab -u '"${USER_NAME}"' -'
+
+# ---- Display.sh already installed/executable above ----
 
 # ---- SSH key: create once, then reuse ----
 log "Ensure SSH key exists and print public key"
