@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# detectorInstall.sh — one-shot setup for your newer detector variant
+# detectorInstall.sh — one-shot setup for this detector variant (no dac60508 C helper)
 # - Enables I2C/SPI (persist + immediate)
 # - Fetches repo files (mppcInterface/, rc.local, DataTransfer.sh, Display.sh, dac.py, biasAdj.py)
 # - Installs WiringPi
-# - Builds ice40/max1932/dac60508 + slowControl (with relink fallback)
+# - Builds ice40 + max1932 + slowControl (with relink fallback)
 # - Installs your repo's rc.local (biasAdjust first, then slowControl) + enables rc-local.service
 # - Adds DataTransfer cron (6h) and installs Display.sh
 # - Generates SSH key once and prints public key
-# - NO pip self-upgrade (uses --break-system-packages for libs)
+# - NO pip self-upgrade; uses --break-system-packages for libs
 
 set -euo pipefail
 
 USER_NAME="cosmic"
 USER_HOME="/home/${USER_NAME}"
-REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"   # <-- change if your repo slug differs
-REPO_TOP="${USER_HOME}/mppcInterface"            # repo extracts here
+REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"      # <-- change if your repo differs
+REPO_TOP="${USER_HOME}/mppcInterface"               # repo extracts here
 
 log(){ printf "\n[%s] %s\n" "$(date '+%F %T')" "$*"; }
 need_root(){ [[ $EUID -eq 0 ]] || { echo "Run with sudo"; exit 1; }; }
@@ -69,25 +69,35 @@ chown "${USER_NAME}:${USER_NAME}" "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/D
                                    "${USER_HOME}/dac.py" "${USER_HOME}/biasAdj.py"
 chmod 755 "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh"
 
-# ---- Python libraries (Blinka, BME280, DACx5678, smbus2) WITHOUT upgrading pip ----
-log "Install Python libs (Blinka, BME280, DACx5678, smbus2) — no pip upgrade"
+# ---- Python libraries (Blinka, BME280, DACx578, smbus2) WITHOUT upgrading pip ----
+log "Install Python libs (Blinka, BME280, DACx578, smbus2) — no pip upgrade"
 python3 -m pip install --break-system-packages --root-user-action=ignore \
-  adafruit-blinka adafruit-circuitpython-bme280 adafruit-circuitpython-dacx5678 smbus2
+  adafruit-blinka adafruit-circuitpython-bme280 adafruit-circuitpython-dacx578 smbus2
+
+# (Optional) quick import check (non-fatal)
+python3 - <<'PY' || true
+try:
+    import adafruit_blinka, adafruit_bme280, adafruit_dacx578  # type: ignore
+    print("[OK] CircuitPython libs import")
+except Exception as e:
+    print("[WARN] Import check failed:", e)
+PY
 
 # ---- WiringPi ----
 log "Install WiringPi"
 sudo -u "${USER_NAME}" bash -lc 'cd ~ && rm -rf WiringPi && git clone --depth=1 https://github.com/WiringPi/WiringPi.git'
 bash -lc "cd ${USER_HOME}/WiringPi && ./build"
 
-# ---- Build firmware helpers ----
+# ---- Build firmware helpers (NO dac60508 here) ----
 build_dir(){ local d="$1"; log "Build: $d"; bash -lc "cd '$d' && make clean || true && make -j\$(nproc)"; }
 
-log "Build ice40/max1932/dac60508 and slowControl"
+log "Build ice40 and max1932"
 build_dir "${REPO_TOP}/firmware/libraries/ice40"
 build_dir "${REPO_TOP}/firmware/libraries/max1932"
-build_dir "${REPO_TOP}/firmware/libraries/dac60508"
+
+log "Build slowControl"
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && make clean || true && make -j\$(nproc) || true"
-# relink fallback in case Makefile link order is off
+# relink fallback if Makefile link order is off
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && rm -f main.o main && g++ -c main.cpp -std=c++11 -I. && g++ main.o -lwiringPi -o main"
 
 # ---- Install your repo's rc.local verbatim and enable the compatibility unit ----
