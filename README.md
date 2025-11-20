@@ -22,7 +22,7 @@ less detectorInstall.sh
 ### Run it
 ```bash
 chmod +x detectorInstall.sh
-**sudo** ./detectorInstall.sh
+sudo ./detectorInstall.sh
 ```
 
 The script is **idempotent**: you can re-run it safely if needed **but** the public key printed at the end has to be sent to the GSU gLOWCOST coordinator each time.
