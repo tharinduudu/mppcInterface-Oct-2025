@@ -22,7 +22,7 @@ less detectorInstall.sh
 ### Run it
 ```bash
 chmod +x detectorInstall.sh
-sudo ./detectorInstall.sh
+**sudo** ./detectorInstall.sh
 ```
 
 The script is **idempotent**: you can re-run it safely if needed **but** the public key printed at the end has to be sent to the GSU gLOWCOST coordinator each time.
@@ -32,7 +32,7 @@ The script is **idempotent**: you can re-run it safely if needed **but** the pub
 ## What the installer does
 
 - **Enables I²C & SPI**
-  - Persists settings in `/boot/config.txt` (and `/boot/firmware/config.txt` if present)
+  - Persists settings in `/boot/firmware/config.txt`
   - Loads overlays/modules immediately so you can proceed without reboot (when possible)
 
 - **Fetches the repo contents needed for the detector** into `/home/cosmic`:
@@ -46,7 +46,7 @@ The script is **idempotent**: you can re-run it safely if needed **but** the pub
 - **Builds firmware helpers**
   - C helpers: `ice40`, `max1932`  
   - `slowControl` binary via `make`; includes a **safe relink fallback** to ensure WiringPi links correctly  
-  - **Note:** this system **does not use `dac60508`** C helper
+  - **Note:** this system **does not use `dac60508`** C helper (new DAC module is handled with 'dac.py')
 
 - **Installs a non-blocking `/etc/rc.local`** from the repo and enables systemd’s **rc-local compatibility** unit for next boot  
   (long-running jobs are backgrounded; `rc.local` exits with `0`)
@@ -56,7 +56,7 @@ The script is **idempotent**: you can re-run it safely if needed **but** the pub
 - **Installs `DataTransfer.sh`** to `/home/cosmic` and schedules it via **cron every 6 hours**
 
 - **Installs Python libraries** for this detector (no pip self-upgrade; uses Pi OS Bookworm flags):
-  - `adafruit-blinka`, `adafruit-circuitpython-bme280`, `adafruit-circuitpython-dacx578`, `smbus2`
+  - `adafruit-blinka`(hardware API), `adafruit-circuitpython-bme280`(temp., humidity, pressure sensor), `adafruit-circuitpython-dacx578`(new DAC module), `smbus2`
 
 - **Generates an SSH key (once) and prints the public key** with a friendly message to share
 
