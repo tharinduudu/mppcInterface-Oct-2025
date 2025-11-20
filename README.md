@@ -4,7 +4,7 @@
 
 > **!! Please send the public key to the GSU gLOWCOST team printed at the end of the procedure.**
 
-End-to-end setup for a Raspberry Pi–based cosmic muon detector (new layout).  
+End-to-end setup for a Raspberry Pi–based cosmic muon detector (new layout 3v0 using the new DAC with temperature compensation).  
 This repo includes a one-step installer that enables **I²C/SPI**, installs dependencies, builds firmware helpers, configures boot-time services, schedules data transfers, and prints an SSH **public key** for secure access.
 
 ## Quick start
