@@ -3,17 +3,17 @@
 # - Enables I2C/SPI (persist + immediate)
 # - Fetches repo files (mppcInterface/, DataTransfer.sh, Display.sh, dac.py, biasAdj.py)  [no rc.local from repo]
 # - Installs WiringPi
-# - Builds ice40 + max1932 + slowControl (with relink fallback)
-# - Installs YOUR /home/cosmic/rc.local (the pigpio-aware one) + enables rc-local.service
-# - Builds & installs pigpio from source (daemon + CLI + Python)
+# - Builds ice40 + max1932 + slowControl (with corrected link order)
+# - Builds & installs pigpio (daemon + CLI) from source + Python client
 # - Starts pigpio now and sets GPCLK0 (BCM4) to 50 MHz
+# - Installs YOUR /home/cosmic/rc.local (the pigpio-aware one) + enables rc-local.service
 # - Adds DataTransfer cron (6h) and prints SSH pubkey
 
 set -euo pipefail
 
 USER_NAME="cosmic"
 USER_HOME="/home/${USER_NAME}"
-REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"
+REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"  # change if different
 REPO_TOP="${USER_HOME}/mppcInterface"
 
 log(){ printf "\n[%s] %s\n" "$(date '+%F %T')" "$*"; }
@@ -32,11 +32,11 @@ usermod -aG gpio,i2c,spi "${USER_NAME}" || true
 log "Enable I2C/SPI in boot config (persist)"
 for f in /boot/config.txt /boot/firmware/config.txt; do
   [[ -f "$f" ]] || continue
-  sed -i -E '/^\s*dtparam=i2c_arm=/d;/^\s*dtparam=spi=/d;/^\s*dtoverlay=spi0-2cs/d' "$f"
+  sed -i -E '/^\s*dtparam=i2c_arm=/d;/^\s*dtparam=spi=/d;/^\s*dtoverlay=spi0-2cs/d;/^\s*dtoverlay=gpclk/d' "$f"
   echo 'dtparam=i2c_arm=on' >> "$f"
   echo 'dtparam=spi=on'     >> "$f"
   echo 'dtoverlay=spi0-2cs' >> "$f"
-  # Important: do NOT add dtoverlay=gpclk — pigpio will own GPIO4 for GPCLK0
+  # do NOT enable dtoverlay=gpclk here; pigpio will own GPIO4 (GPCLK0)
 done
 
 # ---- Enable now (no reboot) ----
@@ -47,7 +47,7 @@ modprobe spi_bcm2835  || true
 modprobe spidev       || true
 udevadm settle || true
 
-# ---- Fetch repo content (exclude rc.local; you will provide your own) ----
+# ---- Fetch repo content (exclude rc.local; you will provide your own in /home/cosmic) ----
 log "Fetch repo files to ${USER_HOME}"
 sudo -u "${USER_NAME}" bash -lc '
   set -e
@@ -72,7 +72,7 @@ chmod 755 "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh"
 # ---- Python libs (Blinka, BME280, DACx578, smbus2) WITHOUT upgrading pip ----
 log "Install Python libs (Blinka, BME280, DACx578, smbus2) — no pip upgrade"
 python3 -m pip install --break-system-packages --root-user-action=ignore \
-  adafruit-blinka adafruit-circuitpython-bme280 adafruit-circuitpython-dacx578 smbus2
+  adafruit-blinka adafruit-circuitpython-bme280 adafruit-circuitpython-dacx578 smbus2 || true
 
 python3 - <<'PY' || true
 try:
@@ -96,7 +96,8 @@ build_dir "${REPO_TOP}/firmware/libraries/max1932"
 
 log "Build slowControl"
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && make clean || true && make -j\$(nproc) || true"
-bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && rm -f main.o main && g++ -c main.cpp -std=c++11 -I. && g++ main.o -lwiringPi -o main"
+# relink fallback with correct order (objects first), and add pthread
+bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && rm -f main.o main && g++ -c main.cpp -std=c++11 -I. && g++ main.o -L/usr/local/lib -lwiringPi -lpthread -o main"
 
 # ---- pigpio (daemon + CLI + python) from source ----
 log "Build & install pigpio from source"
@@ -104,7 +105,8 @@ sudo -u "${USER_NAME}" bash -lc 'cd ~ && rm -rf pigpio && git clone https://gith
 bash -lc "cd ${USER_HOME}/pigpio && make"
 bash -lc "cd ${USER_HOME}/pigpio && make install"
 ldconfig
-python3 -m pip install --break-system-packages --root-user-action=ignore pigpio || true
+# Python client for the 'cosmic' user (so scripts can `import pigpio`)
+sudo -u "${USER_NAME}" pip3 install --user pigpio || true
 
 # ---- Install set_clock.py into the user's home ----
 log "Install set_clock.py helper"
@@ -123,7 +125,7 @@ import argparse, sys, time
 try:
     import pigpio
 except ImportError:
-    print("Missing pigpio. Install/build pigpio and start pigpiod.")
+    print("Missing pigpio. Build/install pigpio and start pigpiod.")
     sys.exit(1)
 
 def main():
@@ -228,4 +230,4 @@ echo
 echo "Install complete."
 echo "→ pigpio is running; GPCLK0 (GPIO4) set to 50 MHz now. Scope pin 7 to confirm."
 echo "→ On boot, /etc/rc.local (your version) will start pigpio and set the clock."
-echo "→ You can tweak later with: /home/${USER_NAME}/set_clock.py 9600000  (or --stop)"
+echo "→ Tweak later with: /home/${USER_NAME}/set_clock.py 9600000   (or --stop)"
