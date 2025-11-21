@@ -3,7 +3,7 @@
 
 # ---- config (edit paths if needed) ----
 ICE40_MAIN="/home/cosmic/mppcInterface/firmware/libraries/ice40/main"
-BITFILE="/home/cosmic/mppcInterface/firmware/libraries/ice40/coincidence_4raw_3coincident.bin"
+BITFILE="/home/cosmic/mppcInterface/firmware/libraries/ice40/top_50MHz_300_60.bin"
 MAX1932_MAIN="/home/cosmic/mppcInterface/firmware/libraries/max1932/main"
 
 DAC_PY="/home/cosmic/dac.py"
