@@ -32,6 +32,12 @@ while [ ! -e /dev/i2c-1 ] && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done
 echo "[rc.local] Programming ICE40" >>"$MAINLOG" 2>&1
 "$ICE40_MAIN" "$BITFILE" >>"$MAINLOG" 2>&1 || echo "[rc.local] ICE40 FAILED" >>"$MAINLOG" 2>&1
 
+# ---- 2) set HV to zero ----
+echo "[rc.local] Setting HV" >>"$MAINLOG" 2>&1
+"$MAX1932_MAIN" 0 >>"$MAINLOG" 2>&1 || echo "[rc.local] MAX1932 FAILED" >>"$MAINLOG" 2>&1
+
+sleep 2
+
 # ---- 1b) start pigpio daemon (if not running) and set 50 MHz GPCLK0 on GPIO4 ----
 if ! /usr/bin/pgrep pigpiod >/dev/null 2>&1; then
   /usr/local/bin/pigpiod >/dev/null 2>&1
