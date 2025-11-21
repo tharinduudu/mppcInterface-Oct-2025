@@ -244,6 +244,6 @@ sudo -u "${USER_NAME}" bash -lc '
 
 echo
 echo "Install complete."
-echo "→ pigpio is running; GPCLK0 (GPIO4) set to 50 MHz now (pin 7)."
-echo "→ On boot, /etc/rc.local will start pigpio and set the clock automatically."
-echo "→Reboot now"
+echo "pigpio is running; GPCLK0 (GPIO4) set to 50 MHz now (pin 7)."
+echo "Please send the public key to the GSU gLOWCOST team."
+echo "Reboot now"
