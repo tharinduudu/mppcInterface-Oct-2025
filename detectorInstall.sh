@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# detectorInstall.sh — one-shot setup for this detector variant (adds pigpio + set_clock.py)
+# detectorInstall.sh — one-shot setup for this detector variant
 # - Enables I2C/SPI (persist + immediate)
-# - Fetches repo files (mppcInterface/, DataTransfer.sh, Display.sh, dac.py, biasAdj.py)  [no rc.local from repo]
+# - Fetches repo files (mppcInterface/, DataTransfer.sh, Display.sh, dac.py, biasAdj.py)
+# - Ensures all relevant .sh are executable (DataTransfer.sh, Display.sh, slowControl/run.sh, any *.sh under repo)
 # - Installs WiringPi
 # - Builds ice40 + max1932 + slowControl (with corrected link order)
-# - Builds & installs pigpio (daemon + CLI) from source + Python client
+# - Builds & installs pigpio (daemon + CLI) in /usr/src + Python client for 'cosmic'
 # - Starts pigpio now and sets GPCLK0 (BCM4) to 50 MHz
-# - Installs YOUR /home/cosmic/rc.local (the pigpio-aware one) + enables rc-local.service
+# - Installs YOUR /home/cosmic/rc.local (pigpio-aware) + enables rc-local.service
 # - Adds DataTransfer cron (6h) and prints SSH pubkey
 
 set -euo pipefail
 
 USER_NAME="cosmic"
 USER_HOME="/home/${USER_NAME}"
-REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"  # change if different
+REPO_SLUG="tharinduudu/mppcInterface-Oct-2025"   # change if different
 REPO_TOP="${USER_HOME}/mppcInterface"
 
 log(){ printf "\n[%s] %s\n" "$(date '+%F %T')" "$*"; }
@@ -36,7 +37,7 @@ for f in /boot/config.txt /boot/firmware/config.txt; do
   echo 'dtparam=i2c_arm=on' >> "$f"
   echo 'dtparam=spi=on'     >> "$f"
   echo 'dtoverlay=spi0-2cs' >> "$f"
-  # do NOT enable dtoverlay=gpclk here; pigpio will own GPIO4 (GPCLK0)
+  # Do NOT enable dtoverlay=gpclk; pigpio will own GPIO4 (GPCLK0).
 done
 
 # ---- Enable now (no reboot) ----
@@ -47,7 +48,7 @@ modprobe spi_bcm2835  || true
 modprobe spidev       || true
 udevadm settle || true
 
-# ---- Fetch repo content (exclude rc.local; you will provide your own in /home/cosmic) ----
+# ---- Fetch repo content (exclude rc.local; you'll provide your own in /home/cosmic) ----
 log "Fetch repo files to ${USER_HOME}"
 sudo -u "${USER_NAME}" bash -lc '
   set -e
@@ -64,13 +65,26 @@ sudo -u "${USER_NAME}" bash -lc '
   rm -rf "$TMP"
 '
 
-# Ownership + exec for helpers
-chown "${USER_NAME}:${USER_NAME}" "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh" \
-                                   "${USER_HOME}/dac.py" "${USER_HOME}/biasAdj.py"
-chmod 755 "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh"
+# Ownership for fetched files + repo tree
+chown -R "${USER_NAME}:${USER_NAME}" "${REPO_TOP}" || true
+chown "${USER_NAME}:${USER_NAME}" \
+  "${USER_HOME}/DataTransfer.sh" \
+  "${USER_HOME}/Display.sh" \
+  "${USER_HOME}/dac.py" \
+  "${USER_HOME}/biasAdj.py"
 
-# ---- Python libs (Blinka, BME280, DACx578, smbus2) WITHOUT upgrading pip ----
-log "Install Python libs (Blinka, BME280, DACx578, smbus2) — no pip upgrade"
+# ---- Make all required .sh executable (explicit + blanket under repo) ----
+log "chmod +x on all .sh used"
+chmod 755 "${USER_HOME}/DataTransfer.sh" "${USER_HOME}/Display.sh" || true
+# slowControl/run.sh if present:
+if [[ -f "${REPO_TOP}/firmware/libraries/slowControl/run.sh" ]]; then
+  chmod 755 "${REPO_TOP}/firmware/libraries/slowControl/run.sh" || true
+fi
+# Any other shell scripts under the repo tree:
+find "${REPO_TOP}" -type f -name "*.sh" -exec chmod 755 {} + || true
+
+# ---- Python libs (Blinka, BME280, DACx578, smbus2) — always with --break-system-packages ----
+log "Install Python libs (Blinka, BME280, DACx578, smbus2) — using --break-system-packages"
 python3 -m pip install --break-system-packages --root-user-action=ignore \
   adafruit-blinka adafruit-circuitpython-bme280 adafruit-circuitpython-dacx578 smbus2 || true
 
@@ -86,6 +100,7 @@ PY
 log "Install WiringPi"
 sudo -u "${USER_NAME}" bash -lc 'cd ~ && rm -rf WiringPi && git clone --depth=1 https://github.com/WiringPi/WiringPi.git'
 bash -lc "cd ${USER_HOME}/WiringPi && ./build"
+ldconfig
 
 # ---- Build firmware helpers (NO dac60508 here) ----
 build_dir(){ local d="$1"; log "Build: $d"; bash -lc "cd '$d' && make clean || true && make -j\$(nproc)"; }
@@ -94,19 +109,20 @@ log "Build ice40 and max1932"
 build_dir "${REPO_TOP}/firmware/libraries/ice40"
 build_dir "${REPO_TOP}/firmware/libraries/max1932"
 
-log "Build slowControl"
+log "Build slowControl (fix link order)"
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && make clean || true && make -j\$(nproc) || true"
-# relink fallback with correct order (objects first), and add pthread
+# relink fallback with correct order and lib path
 bash -lc "cd ${REPO_TOP}/firmware/libraries/slowControl && rm -f main.o main && g++ -c main.cpp -std=c++11 -I. && g++ main.o -L/usr/local/lib -lwiringPi -lpthread -o main"
 
-# ---- pigpio (daemon + CLI + python) from source ----
+# ---- pigpio (daemon + CLI + python) from source in /usr/src ----
 log "Build & install pigpio from source"
-sudo -u "${USER_NAME}" bash -lc 'cd ~ && rm -rf pigpio && git clone https://github.com/joan2937/pigpio.git'
-bash -lc "cd ${USER_HOME}/pigpio && make"
-bash -lc "cd ${USER_HOME}/pigpio && make install"
+rm -rf "/usr/src/pigpio"
+git clone https://github.com/joan2937/pigpio.git /usr/src/pigpio
+bash -lc "cd /usr/src/pigpio && make"
+bash -lc "cd /usr/src/pigpio && make install"
 ldconfig
-# Python client for the 'cosmic' user (so scripts can `import pigpio`)
-sudo -u "${USER_NAME}" pip3 install --user pigpio || true
+# Python client for the 'cosmic' user — include --break-system-packages even with --user
+sudo -u "${USER_NAME}" python3 -m pip install --break-system-packages --user pigpio || true
 
 # ---- Install set_clock.py into the user's home ----
 log "Install set_clock.py helper"
@@ -173,7 +189,7 @@ log "Start pigpio daemon and set GPCLK0 to 50 MHz (now)"
 if ! pgrep pigpiod >/dev/null 2>&1; then
   /usr/local/bin/pigpiod >/dev/null 2>&1 || true
 fi
-# wait until the daemon answers
+# wait until the daemon answers (max ~5s)
 for n in 1 2 3 4 5; do
   /usr/local/bin/pigs t >/dev/null 2>&1 && break
   sleep 1
@@ -181,7 +197,7 @@ done
 /usr/local/bin/pigs hc 4 50000000 >/dev/null 2>&1 || true
 
 # ---- Install YOUR rc.local and enable rc-local.service ----
-# Expecting /home/cosmic/rc.local to be the pigpio-aware version we discussed.
+# Expecting /home/cosmic/rc.local to be the pigpio-aware version you prepared.
 if [[ -f "${USER_HOME}/rc.local" ]]; then
   log "Install rc.local from ${USER_HOME}/rc.local and enable rc-local.service"
   install -m 755 -o root -g root "${USER_HOME}/rc.local" /etc/rc.local
@@ -228,6 +244,6 @@ sudo -u "${USER_NAME}" bash -lc '
 
 echo
 echo "Install complete."
-echo "→ pigpio is running; GPCLK0 (GPIO4) set to 50 MHz now. Scope pin 7 to confirm."
-echo "→ On boot, /etc/rc.local (your version) will start pigpio and set the clock."
-echo "→ Tweak later with: /home/${USER_NAME}/set_clock.py 9600000   (or --stop)"
+echo "→ pigpio is running; GPCLK0 (GPIO4) set to 50 MHz now (pin 7)."
+echo "→ On boot, /etc/rc.local will start pigpio and set the clock automatically."
+echo "→Reboot now"
