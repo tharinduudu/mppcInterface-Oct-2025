@@ -17,8 +17,12 @@ DAC_CHANNELS="0 1 2 3"
 # Logs
 LOGROOT="/home/cosmic/logs"
 TC_LOGDIR="$LOGROOT/tempcomp"
+BME_LOGDIR="$LOGROOT/bmelogs"
 MAINLOG="/var/log/detector.log"
-mkdir -p "$TC_LOGDIR" || true
+
+# Create log dirs (as root), then hand ownership to cosmic
+mkdir -p "$TC_LOGDIR" "$BME_LOGDIR" || true
+chown -R cosmic:cosmic "$LOGROOT"
 
 echo "[rc.local] === $(date) === startup" >>"$MAINLOG" 2>&1
 
