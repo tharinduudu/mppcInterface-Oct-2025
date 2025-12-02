@@ -17,7 +17,7 @@ dest_dir_bias_data="/home/dsk3/xiaochun/Cosmic/tempTest/biasData"
 
 # --- Remote host/auth ---
 source_host="131.96.55.85"
-ssh_key="/home/cosmic/.ssh/id_rsa"
+ssh_key="/home/cosmic/.ssh/id_ed25519"
 ssh_port="2998"
 remote_user="xiaochun"
 
