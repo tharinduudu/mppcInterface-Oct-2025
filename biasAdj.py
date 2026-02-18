@@ -76,7 +76,7 @@ BME_I2C_ADDR = 0x77
 SAMPLE_EVERY_SEC = int(os.getenv("SAMPLE_EVERY_SEC", "10"))
 LOG_BLOCK_SEC = int(os.getenv("LOG_BLOCK_SEC", str(5 * 60)))
 
-# Anti dither thresholds (you asked for 5 code minimum)
+# Anti dither thresholds (5 code minimum)
 MIN_STEP_CODES = int(os.getenv("MIN_STEP_CODES", "5"))
 # Match 5 codes (~11.5 mV) with ~12 mV voltage gate
 MIN_STEP_VOLTS = float(os.getenv("MIN_STEP_VOLTS", "0.012"))
