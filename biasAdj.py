@@ -73,7 +73,7 @@ BME_I2C_ADDR = 0x77
 SAMPLE_EVERY_SEC = 10               # sensor sample period
 LOG_BLOCK_SEC = 5 * 60              # averaging window (5 minutes)
 MIN_STEP_VOLTS = 0.004              # >=4 mV required to apply an update
-MIN_STEP_CODES = 1                  # >=1 code required to apply an update
+MIN_STEP_CODES = 2                  # >=2 code required to apply an update
 
 # --------------------------- Helper funcs ---------------------------
 
