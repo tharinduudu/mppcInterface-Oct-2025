@@ -29,8 +29,8 @@ void ICE40::setup(const uint8_t SPI_CHANNEL, const uint32_t clkSpeed) {
   wiringPiSetup();
 
   // Keep your original GPCLK: WiringPi pin 7 (BCM4) @ 9.6 MHz
-  pinMode(7, GPIO_CLOCK);
-  gpioClockSet(7, 9600000);
+  //pinMode(7, GPIO_CLOCK);
+  //gpioClockSet(7, 9600000);
 
   // iCE40 expects SPI mode 0
   if (wiringPiSPISetupMode(SPI_CHANNEL, clkSpeed, 0) < 0) {
