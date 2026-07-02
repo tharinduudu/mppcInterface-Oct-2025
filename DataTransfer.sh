@@ -6,14 +6,14 @@ set -o pipefail
 echo "Copying files to Phys2 server"
 
 # --- Source dirs ---
-source_dir_muon_data="/home/cosmic/mppcinterface-oct-2022/firmware/libraries/slowControl"
+source_dir_muon_data="/home/cosmic/mppcInterface/firmware/libraries/slowControl"
 source_dir_press_data="/home/cosmic/logs/bmelogs"
 source_dir_bias_data="/home/cosmic/logs/tempcomp"
 
 # --- Destination dirs ---
-dest_dir_muon_data="/home/dsk3/xiaochun/Cosmic/tempTest/muonData"
-dest_dir_press_data="/home/dsk3/xiaochun/Cosmic/tempTest/prsData"
-dest_dir_bias_data="/home/dsk3/xiaochun/Cosmic/tempTest/biasData"
+dest_dir_muon_data="/home/dsk3/xiaochun/Cosmic/Ruhuna/muonData"
+dest_dir_press_data="/home/dsk3/xiaochun/Cosmic/Ruhuna/prsData"
+dest_dir_bias_data="/home/dsk3/xiaochun/Cosmic/Ruhuna/biasData"
 
 # --- Remote host/auth ---
 source_host="131.96.55.85"
