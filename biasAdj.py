@@ -60,8 +60,8 @@ TEMP_COEFF_V_PER_C = float(os.getenv("TEMP_COEFF_V_PER_C", "0.054"))
 
 # DAC model
 # Vlow ~= VOFF + SPAN * (code / 1023)
-VOFF = float(os.getenv("VOFF", "-0.0226786515445685"))
-SPAN = float(os.getenv("SPAN", "2.3527073030891374"))
+VOFF = float(os.getenv("VOFF", "0.0005"))
+SPAN = float(os.getenv("SPAN", "2.9968"))
 V_PER_CODE_V = SPAN / 1023.0
 
 # BME settings
