@@ -1,9 +1,9 @@
 #!/bin/sh
-# /etc/rc.local  — Detector bring-up (biasAdjust first, then slowControl)
+# /etc/rc.local  Detector bring-up (biasAdjust first, then slowControl)
 
 # ---- config (edit paths if needed) ----
 ICE40_MAIN="/home/cosmic/mppcInterface/firmware/libraries/ice40/main"
-BITFILE="/home/cosmic/mppcInterface/firmware/libraries/ice40/top_50MHz_300_60.bin"
+BITFILE="/home/cosmic/mppcInterface/firmware/libraries/ice40/top_50MHz_led100_dt200_pi10us.bin"
 MAX1932_MAIN="/home/cosmic/mppcInterface/firmware/libraries/max1932/main"
 
 DAC_PY="/home/cosmic/dac.py"
@@ -13,6 +13,11 @@ SLOWCONTROL_DIR="/home/cosmic/mppcInterface/firmware/libraries/slowControl"
 # Initial DAC codes (channels 0..3)
 INIT_CODE="0x2F1"
 DAC_CHANNELS="0 1 2 3"
+
+# Initial DAC codes for thresholds (channels 4..7)
+DACthrs_CODE="0x080"
+DACthrs_CHANNELS="4 5 6 7"
+
 
 # Logs
 LOGROOT="/home/cosmic/logs"
@@ -71,6 +76,12 @@ echo "[rc.local] Setting HV" >>"$MAINLOG" 2>&1
 echo "[rc.local] Initial DAC codes (${DAC_CHANNELS} -> ${INIT_CODE})" >>"$MAINLOG" 2>&1
 for ch in $DAC_CHANNELS; do
   su -l cosmic -c "/usr/bin/env python3 '$DAC_PY' $ch '$INIT_CODE'" >>"$MAINLOG" 2>&1 || true
+done
+
+# ---- 3) initial DACthrs codes (run python as 'cosmic') ----
+echo "[rc.local] Initial DAC codes (${DACthrs_CHANNELS} -> ${DACthrs_CODE})" >>"$MAINLOG" 2>&1
+for ch in $DACthrs_CHANNELS; do
+  su -l cosmic -c "/usr/bin/env python3 '$DAC_PY' $ch '$DACthrs_CODE'" >>"$MAINLOG" 2>&1 || true
 done
 
 # ---- 4) start biasAdjust.py FIRST (background, protected from SIGHUP) ----
