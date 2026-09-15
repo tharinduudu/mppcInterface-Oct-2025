@@ -19,10 +19,10 @@ import adafruit_dacx578
 
 DAC_ADDR = 0x47  # I2C address of the DACx578
 
-# Calibration from your 20-point measurement table:
+# Calibration from the 0x000..0x3FF measured DAC sweep.
 # Vlow ≈ VOFF + SPAN * (code/1023)
-VOFF = -0.0226786515445685  # volts (intercept)
-SPAN =  2.3527073030891374  # volts per full-scale fraction
+VOFF = 0.0005  # volts (intercept)
+SPAN = 2.9968  # volts per full-scale fraction
 
 def to_scaled16(code10: int) -> int:
     """Map 10-bit code (0..1023) to the driver's 16-bit .value (0..65535)."""
