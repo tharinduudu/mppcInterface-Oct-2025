@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
-# dac.py — Set DACx578 by CHANNEL + 10-bit CODE; print High voltage, DAC output, Effective bias (2 decimals)
-#
-# Usage:
-#   python3 dac.py 0 0x23A
-#   python3 dac.py 3 672
-#
-# Prints exactly three lines (two decimal places each):
-#   High voltage: <V>
-#   DAC output: <V>
-#   Effective bias: <V>
+"""Set one DACx578 channel using a 10-bit code.
 
-HIGH_SIDE = 57.0  # volts (edit this as needed)
+The DAC controls the low side of the SiPM.  This script can calculate that
+voltage from the measured DAC calibration.  It cannot measure the MAX1932
+high-side voltage, so an effective bias is only reported when HIGH_SIDE_V is
+provided explicitly in the environment.
+"""
 
+import math
+import os
 import sys
-import board
-import busio
-import adafruit_dacx578
 
 DAC_ADDR = 0x47  # I2C address of the DACx578
 
@@ -58,6 +52,12 @@ def main():
         print("Error: code must be 0..1023 or 0x000..0x3FF.", file=sys.stderr)
         sys.exit(3)
 
+    # Hardware imports stay here so conversion functions can be tested away
+    # from a Raspberry Pi.
+    import board
+    import busio
+    import adafruit_dacx578
+
     # I2C + DAC
     i2c = busio.I2C(board.SCL, board.SDA)
     dac = adafruit_dacx578.DACx578(i2c, address=DAC_ADDR)
@@ -79,14 +79,26 @@ def main():
     # Set the channel value
     dac.channels[ch].value = to_scaled16(code10)
 
-    # Compute outputs
+    # Compute outputs. HIGH_SIDE_V must come from a measured or calibrated
+    # MAX1932 setting; silently assuming 57 V gives a false effective bias.
     vlow = predicted_vlow(code10)
-    vbias = HIGH_SIDE - vlow
+    high_side_text = os.getenv("HIGH_SIDE_V")
+    high_side = math.nan
+    if high_side_text is not None:
+        try:
+            high_side = float(high_side_text)
+        except ValueError:
+            print("Error: HIGH_SIDE_V must be a number in volts.", file=sys.stderr)
+            sys.exit(4)
 
-    # Print exactly the three requested lines with two decimals
-    print(f"High voltage: {HIGH_SIDE:.2f} V")
-    print(f"DAC output: {vlow:.2f} V")
-    print(f"Effective bias: {vbias:.2f} V")
+    if math.isfinite(high_side):
+        print(f"High voltage: {high_side:.4f} V")
+        print(f"DAC output: {vlow:.4f} V")
+        print(f"Effective bias: {high_side - vlow:.4f} V")
+    else:
+        print("High voltage: unknown")
+        print(f"DAC output: {vlow:.4f} V")
+        print("Effective bias: unknown")
 
 if __name__ == "__main__":
     main()

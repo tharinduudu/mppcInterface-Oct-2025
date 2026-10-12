@@ -120,6 +120,45 @@ cat /home/cosmic/.ssh/id_ed25519.pub
   - bias adjust logs: `/home/cosmic/logs/tempcomp/…`
   - SlowControl logging behavior is controlled by your `run.sh`
 
+## Bias-control calibration
+
+The authoritative bias-control files are the two scripts in the repository
+root. The installer places them at:
+
+```text
+/home/cosmic/dac.py
+/home/cosmic/biasAdj.py
+```
+
+The measured low-side DAC model is:
+
+```text
+Vlow = 0.0005 V + 2.9968 V * code / 1023
+```
+
+This corresponds to approximately 2.93 mV per DAC code. `biasAdj.py` uses the
+same model, so conversion in the temperature controller agrees with the value
+written by `dac.py`.
+
+`dac.py` does not measure the MAX1932 output. It therefore reports the
+high-side voltage and effective SiPM bias as `unknown` unless a calibrated
+high-side value is supplied explicitly:
+
+```bash
+HIGH_SIDE_V=56.214 python3 /home/cosmic/dac.py 0 0x2F1
+```
+
+Do not treat an assumed MAX1932 voltage as a measurement. MAX1932 calibration,
+breakdown voltage and the selected operating point can differ between detector
+boards and SiPMs. Those values must be measured for the detector being
+configured.
+
+The default temperature coefficient is 54 mV/deg C. When temperature rises,
+`biasAdj.py` lowers `Vlow`, increasing the effective bias by the corresponding
+amount. Its reference temperature, starting codes and temperature coefficient
+can be overridden through the documented environment variables before the
+process is started.
+
 ---
 
 ## Customize

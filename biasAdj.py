@@ -22,6 +22,7 @@ import math
 import shutil
 import subprocess
 from datetime import datetime
+from pathlib import Path
 from statistics import mean, pstdev, median
 
 try:
@@ -42,7 +43,7 @@ ADJ_LOG_DIR = os.getenv("TEMPCOMP_LOG_DIR", "/home/cosmic/logs/tempcomp")
 # ----------------------------- CONFIG -------------------------------
 
 CHANNELS = [0, 1, 2, 3]
-DAC_SCRIPT = "./dac.py"
+DAC_SCRIPT = os.getenv("DAC_SCRIPT", str(Path(__file__).resolve().with_name("dac.py")))
 
 # These are the start codes at REF_TEMP_C
 START_CODES = {
@@ -109,6 +110,14 @@ def vlow_to_code(v):
     v = max(0.0, float(v))
     code = int(round(((v - VOFF) / SPAN) * 1023.0))
     return max(0, min(1023, code))
+
+def compensation_delta_v(temperature_c, reference_temperature_c):
+    """Required low-side change for a temperature change.
+
+    Effective bias is Vhigh - Vlow.  A warmer SiPM needs a larger effective
+    bias, so Vlow must decrease.
+    """
+    return -TEMP_COEFF_V_PER_C * (float(temperature_c) - float(reference_temperature_c))
 
 def parse_dac_stdout(text):
     hv = math.nan
@@ -438,7 +447,7 @@ def main():
 
         # Effective bias is HV - Vlow.
         # If temp goes up, reduce Vlow to increase effective bias.
-        dV = -TEMP_COEFF_V_PER_C * dT
+        dV = compensation_delta_v(ref_temp + dT, ref_temp)
 
         # Plan updates for this block
         pending = {}
