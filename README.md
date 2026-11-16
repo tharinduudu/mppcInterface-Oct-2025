@@ -156,10 +156,6 @@ configured.
 The [MAX1932 utility](mppcInterface/firmware/libraries/max1932/readme.md)
 supports hardware-free prediction and a per-board measured calibration file.
 The archived example curve is not installed by default.
-`rc.local` logs the startup bias DAC code, low-side voltage and effective
-bias for each SiPM channel in `/var/log/detector.log`. Effective bias is shown
-as unknown if the startup MAX1932 command fails or has no calibrated estimate.
-These are startup settings, before any temperature compensation.
 
 The default temperature coefficient is 54 mV/deg C. When temperature rises,
 `biasAdj.py` lowers `Vlow`, increasing the effective bias by the corresponding
