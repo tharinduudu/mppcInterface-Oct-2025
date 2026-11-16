@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
 
@@ -62,17 +63,21 @@ void MAX1932::setup(uint8_t CS_PIN, uint8_t SPI_CHANNEL){
   _CS_PIN = CS_PIN;
   _SPI_CHANNEL = SPI_CHANNEL;
 
-  wiringPiSetup();
-  wiringPiSPISetupMode(_SPI_CHANNEL, 1000000, 0);
+  if (wiringPiSetup() < 0)
+    throw std::runtime_error("GPIO setup failed");
   pinMode(_CS_PIN, OUTPUT);
   digitalWrite(_CS_PIN,  HIGH);
+  if (wiringPiSPISetupMode(_SPI_CHANNEL, 1000000, 0) < 0)
+    throw std::runtime_error("SPI setup failed");
   delay(5);
 }
 
 void MAX1932::write(uint8_t val){
   uint8_t data[1] = {val};
   digitalWrite(_CS_PIN, LOW);
-  wiringPiSPIDataRW(_SPI_CHANNEL, data, 1);
+  int transferred = wiringPiSPIDataRW(_SPI_CHANNEL, data, 1);
   digitalWrite(_CS_PIN,  HIGH);
+  if (transferred != 1)
+    throw std::runtime_error("SPI write failed; hardware state not verified");
 }
 

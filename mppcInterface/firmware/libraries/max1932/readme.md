@@ -1,26 +1,35 @@
-# MAX1932 Libray
-C++ Wiring Pi library for Maxim's [MAX1932](https://datasheets.maximintegrated.com/en/ds/MAX1932.pdf) APD bias supply. 
+# MAX1932 bias supply
 
-## Example
-```cpp
-#include <stdio.h>
-#include <stdlib.h>
-#include <wiringPi.h>
-#include <wiringPiSPI.h>
+Build with `make` on the Raspberry Pi after installing WiringPi.
+The detector uses BCM13 (header pin 33) for chip select and SPI channel 0.
 
-#include "max1932.h"
-
-// HV chip select GPIO5, Header Pin 29, Wiring pi Pin 21
-#define CS_PIN 21
-#define SPI_CHANNEL 0
-
-int main (){
-  MAX1932 *hv = new MAX1932(CS_PIN, SPI_CHANNEL);
-  hv->setByte(0xAE);
-  return 0;
-}
+```sh
+./main --predict 0xEA                 # Show what the code means; no GPIO or SPI access
+./main --predict --voltage 55.13      # Find the nearest code for the board's high side
+./main 0x00                          # Send the HV-off command
 ```
 
-## Voltage Curves
+A raw hex code without `--predict` is sent to the chip as-is. Do not use a raw
+code from another board as a voltage calibration. `--voltage` (V) and `--mV`
+require a board calibration for nonzero targets and reject out-of-range
+requests rather than selecting a higher voltage. The target is the **high
+side**, not the effective SiPM bias (high side minus low side).
 
-### Calculation
+## Board calibration
+
+For a measured board, install a root-owned
+`/etc/glowcost/max1932-calibration.conf`, or use `--calibration FILE` for
+an explicit file. The file contains one row:
+
+```text
+intercept_V  slope_V_per_code  lowest_calibrated_hex_code  highest_calibrated_hex_code
+```
+
+Fit high-side meter readings against the decimal code over the linear region.
+Use only the measured range. See [the archived curve](calibration.example.conf)
+for the format; its coefficients apply only to the board used to measure it.
+Without a file, raw-code commands still work and the display clearly labels
+the original circuit calculation as nominal.
+
+Neither an SPI write nor the displayed estimate verifies the actual voltage.
+Check the high side with a meter before using the result to set SiPM bias.

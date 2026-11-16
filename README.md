@@ -153,6 +153,10 @@ breakdown voltage and the selected operating point can differ between detector
 boards and SiPMs. Those values must be measured for the detector being
 configured.
 
+The [MAX1932 utility](mppcInterface/firmware/libraries/max1932/readme.md)
+supports hardware-free prediction and a per-board measured calibration file.
+The archived example curve is not installed by default.
+
 The default temperature coefficient is 54 mV/deg C. When temperature rises,
 `biasAdj.py` lowers `Vlow`, increasing the effective bias by the corresponding
 amount. Its reference temperature, starting codes and temperature coefficient
