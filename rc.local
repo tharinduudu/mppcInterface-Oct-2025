@@ -10,7 +10,10 @@ DAC_PY="/home/cosmic/dac.py"
 BIAS_PY="/home/cosmic/biasAdj.py"
 SLOWCONTROL_DIR="/home/cosmic/mppcInterface/firmware/libraries/slowControl"
 
-# Initial DAC codes (channels 0..3)
+# Initial bias DAC settings (channels 0..3).
+# Effective bias = calibrated MAX1932 high side minus the channel's DAC output.
+# The per-channel values are logged below; without a board curve they are unknown.
+MAX1932_CODE="0xEA"
 INIT_CODE="0x2F1"
 DAC_CHANNELS="0 1 2 3"
 
@@ -69,19 +72,38 @@ else
 fi
 
 # ---- 2) set HV ----
-echo "[rc.local] Setting HV" >>"$MAINLOG" 2>&1
-"$MAX1932_MAIN" 0xEA >>"$MAINLOG" 2>&1 || echo "[rc.local] MAX1932 FAILED" >>"$MAINLOG" 2>&1
+echo "[rc.local] Setting HV: $MAX1932_CODE" >>"$MAINLOG"
+high_side_env=""
+if hv_reply=$("$MAX1932_MAIN" "$MAX1932_CODE" 2>>"$MAINLOG"); then
+  printf '%s\n' "$hv_reply" >>"$MAINLOG"
+  # Only the successful setter's calibrated estimate may be used, never its nominal voltage.
+  high_side_v=$(printf '%s\n' "$hv_reply" | LC_ALL=C awk '
+    /^[0-9]+[.][0-9]+ V [(]calibrated estimate, not readback[)]$/ {print $1; exit}
+  ')
+  if [ -n "$high_side_v" ]; then
+    high_side_env="HIGH_SIDE_V=$high_side_v"
+  fi
+else
+  printf '%s\n' "$hv_reply" >>"$MAINLOG"
+  echo "[rc.local] MAX1932 FAILED" >>"$MAINLOG"
+fi
 
-# ---- 3) initial DAC codes (run python as 'cosmic') ----
-echo "[rc.local] Initial DAC codes (${DAC_CHANNELS} -> ${INIT_CODE})" >>"$MAINLOG" 2>&1
+# ---- 3) initial bias DAC codes (run python as 'cosmic') ----
+if [ -n "$high_side_env" ]; then
+  echo "[rc.local] Startup effective biases below are calibrated estimates, not voltage readback." >>"$MAINLOG"
+else
+  echo "[rc.local] Startup effective biases are unknown without a successful calibrated HV setting." >>"$MAINLOG"
+fi
 for ch in $DAC_CHANNELS; do
-  su -l cosmic -c "/usr/bin/env python3 '$DAC_PY' $ch '$INIT_CODE'" >>"$MAINLOG" 2>&1 || true
+  printf '[rc.local] Bias DAC CH%s: %s\n' "$ch" "$INIT_CODE" >>"$MAINLOG"
+  su -l cosmic -c "/usr/bin/env -u HIGH_SIDE_V $high_side_env python3 '$DAC_PY' $ch '$INIT_CODE'" >>"$MAINLOG" 2>&1 ||
+    echo "[rc.local] Bias DAC CH$ch FAILED" >>"$MAINLOG"
 done
 
 # ---- 3) initial DACthrs codes (run python as 'cosmic') ----
 echo "[rc.local] Initial DAC codes (${DACthrs_CHANNELS} -> ${DACthrs_CODE})" >>"$MAINLOG" 2>&1
 for ch in $DACthrs_CHANNELS; do
-  su -l cosmic -c "/usr/bin/env python3 '$DAC_PY' $ch '$DACthrs_CODE'" >>"$MAINLOG" 2>&1 || true
+  su -l cosmic -c "/usr/bin/env -u HIGH_SIDE_V python3 '$DAC_PY' $ch '$DACthrs_CODE'" >>"$MAINLOG" 2>&1 || true
 done
 
 # ---- 4) start biasAdjust.py FIRST (background, protected from SIGHUP) ----
